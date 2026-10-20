@@ -10,16 +10,16 @@ namespace buf {
 
     double wallMs() {
         using namespace std::chrono;
-        return duration<double, std::milli>(steady_clock::now().time_since_epoch()).count();
+        static auto const start = steady_clock::now();
+        return duration<double, std::milli>(steady_clock::now() - start).count();
     }
 
     void resetRuntime() {
         auto& s = state();
         for (int i = 0; i < 2; i++) {
             s.queues[i].clear();
-            s.lastDueMs[i] = 0.f;
+            s.lastDueMs[i] = 0.0;
             s.players[i] = PlayerTrack{};
         }
-        s.timeMs = 0.f;
     }
 }

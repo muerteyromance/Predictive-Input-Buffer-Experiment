@@ -31,7 +31,7 @@ namespace {
                 st.queues[i].pop_front();
                 layer->handleButton(in.down, in.button, in.isPlayer1);
             }
-            st.lastDueMs[i] = 0.f;
+            st.lastDueMs[i] = 0.0;
         }
         st.passthrough = false;
     }
@@ -73,6 +73,8 @@ class $modify(BufferGameLayer, GJBaseGameLayer) {
 
         int idx = isPlayer1 ? 0 : 1;
         float delay = buf::delayMsFor(this, isPlayer1);
+        st.dbg.in++;
+        st.dbg.lastDelayMs = delay;
 
         // Nothing to delay and nothing waiting for this player.
         if (delay <= 0.f && st.queues[idx].empty()) {
@@ -82,9 +84,11 @@ class $modify(BufferGameLayer, GJBaseGameLayer) {
 
         // Order is preserved per player: an input never lands before an
         // earlier one of the same player, so a release can't overtake its press.
-        float due = std::max(st.timeMs + delay, st.lastDueMs[idx]);
+        double now = buf::wallMs();
+        double due = std::max(now + delay, st.lastDueMs[idx]);
         st.lastDueMs[idx] = due;
-        st.queues[idx].push_back({down, button, isPlayer1, due, buf::wallMs()});
+        st.queues[idx].push_back({down, button, isPlayer1, due, now});
+        st.dbg.queued++;
     }
 
     void processCommands(float dt, bool isHalfTick, bool isLastTick) {
@@ -92,27 +96,31 @@ class $modify(BufferGameLayer, GJBaseGameLayer) {
             auto& st = buf::state();
             updateHoldState(this);
 
-            // Game time advances by the dt of every update, so this does not
-            // depend on how the game splits its steps.
-            if (dt > 0.f && dt < 0.1f) {
-                st.timeMs += dt * 1000.f;
-            }
+            st.dbg.calls++;
+            if (isHalfTick) st.dbg.halfCalls++;
+            st.dbg.lastDtMs = dt * 1000.f;
+
             buf::updateSituation(this);
 
-            double nowWall = buf::wallMs();
+            // Everything is timed in real milliseconds, so it does not depend
+            // on how the game splits or labels its physics steps.
+            double now = buf::wallMs();
             for (int i = 0; i < 2; i++) {
                 auto& q = st.queues[i];
                 while (!q.empty()) {
                     auto const& front = q.front();
-                    bool due = front.dueMs <= st.timeMs;
-                    bool stale = (nowWall - front.enqueuedWallMs) > buf::kFailsafeMs;
+                    bool due = front.dueMs <= now;
+                    bool stale = (now - front.enqueuedWallMs) > buf::kFailsafeMs;
                     if (!due && !stale) break;
 
+                    if (due) st.dbg.out++; else st.dbg.stale++;
                     auto in = front;
                     q.pop_front();
                     GJBaseGameLayer::handleButton(in.down, in.button, in.isPlayer1);
                 }
             }
+
+            if (st.dbg.calls % 15 == 0) buf::refreshDebug();
         }
         GJBaseGameLayer::processCommands(dt, isHalfTick, isLastTick);
     }

@@ -15,8 +15,8 @@ namespace buf {
         bool down;
         int button;
         bool isPlayer1;
-        float dueMs;        // game-time at which it should be applied
-        double enqueuedWallMs;  // real time when it was queued (for the failsafe)
+        double dueMs;           // real time (ms since mod start) when it should be applied
+        double enqueuedWallMs;  // real time when it was queued
     };
 
     // What we remember about one player between updates, to detect portals
@@ -24,7 +24,19 @@ namespace buf {
     struct PlayerTrack {
         int gamemode = -1;
         bool upsideDown = false;
-        float transitionUntilMs = 0.f;
+        double transitionUntilMs = 0.0;
+    };
+
+    // Counters shown in the on-screen debug panel.
+    struct Debug {
+        int calls = 0;       // processCommands calls
+        int halfCalls = 0;   // of those, how many had isHalfTick = true
+        int in = 0;          // clicks/releases intercepted while the buffer was active
+        int queued = 0;      // of those, how many were actually delayed
+        int out = 0;         // released from the queue on time
+        int stale = 0;       // released by the failsafe
+        float lastDtMs = 0.f;
+        float lastDelayMs = 0.f;
     };
 
     struct State {
@@ -37,14 +49,13 @@ namespace buf {
         // One queue per player so player 1 and player 2 never delay each other.
         // Index 0 = player 1, index 1 = player 2.
         std::deque<PendingInput> queues[2];
-        float lastDueMs[2] = {0.f, 0.f};
-
-        float timeMs = 0.f;  // game time, accumulated from the dt of each update
+        double lastDueMs[2] = {0.0, 0.0};
 
         PlayerTrack players[2];
+        Debug dbg;
     };
 
     State& state();
-    double wallMs();      // monotonic real time in milliseconds
+    double wallMs();      // monotonic real time in ms since the mod started
     void resetRuntime();  // clears queues and per-level tracking
 }

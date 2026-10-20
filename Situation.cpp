@@ -66,7 +66,7 @@ namespace buf {
             // Ignore the very first reading after a reset so the level start
             // does not count as a transition.
             if (track.gamemode != -1 && (gm != track.gamemode || up != track.upsideDown)) {
-                track.transitionUntilMs = st.timeMs + static_cast<float>(cfg.transitionWindowMs);
+                track.transitionUntilMs = wallMs() + cfg.transitionWindowMs;
             }
             track.gamemode = gm;
             track.upsideDown = up;
@@ -91,7 +91,7 @@ namespace buf {
             }
 
             auto const& track = st.players[isPlayer1 ? 0 : 1];
-            if (ms > 0.f && st.timeMs < track.transitionUntilMs) {
+            if (ms > 0.f && wallMs() < track.transitionUntilMs) {
                 ms *= cfg.transitionPercent / 100.f;
             }
         }
