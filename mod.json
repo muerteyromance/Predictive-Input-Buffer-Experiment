@@ -1,0 +1,156 @@
+{
+  "geode": "5.11.2",
+  "gd": {
+    "win": "2.2081"
+  },
+  "id": "cesar.input-buffer",
+  "name": "Predictive Input Buffer",
+  "version": "v0.3.0",
+  "developer": "CesarGD96",
+  "description": "Per-gamemode input buffer. F6 intensity, F7 per-gamemode logic, F8 on-screen display, hold a key to pause the buffer.",
+  "settings": {
+    "title-delays": {
+      "type": "title",
+      "name": "Delay per gamemode (milliseconds)"
+    },
+    "wave-ms": {
+      "type": "int",
+      "name": "Wave",
+      "default": 25,
+      "min": 0,
+      "max": 100,
+      "description": "Input delay in wave. Higher = more forgiving, less direct control."
+    },
+    "ship-ms": {
+      "type": "int",
+      "name": "Ship",
+      "default": 0,
+      "min": 0,
+      "max": 100,
+      "description": "0 keeps the ship fully raw so it never feels sluggish."
+    },
+    "ufo-ms": {
+      "type": "int",
+      "name": "UFO",
+      "default": 12,
+      "min": 0,
+      "max": 100
+    },
+    "cube-ms": {
+      "type": "int",
+      "name": "Cube",
+      "default": 12,
+      "min": 0,
+      "max": 100
+    },
+    "ball-ms": {
+      "type": "int",
+      "name": "Ball",
+      "default": 12,
+      "min": 0,
+      "max": 100
+    },
+    "robot-ms": {
+      "type": "int",
+      "name": "Robot",
+      "default": 12,
+      "min": 0,
+      "max": 100
+    },
+    "spider-ms": {
+      "type": "int",
+      "name": "Spider",
+      "default": 8,
+      "min": 0,
+      "max": 100
+    },
+    "swing-ms": {
+      "type": "int",
+      "name": "Swing",
+      "default": 0,
+      "min": 0,
+      "max": 100
+    },
+    "flat-ms": {
+      "type": "int",
+      "name": "Flat delay (when F7 situational is OFF)",
+      "default": 12,
+      "min": 0,
+      "max": 100,
+      "description": "Single delay used for every gamemode when per-gamemode logic is toggled off with F7."
+    },
+    "title-extras": {
+      "type": "title",
+      "name": "Extras"
+    },
+    "transition-percent": {
+      "type": "int",
+      "name": "Transition boost (%)",
+      "default": 150,
+      "min": 100,
+      "max": 300,
+      "description": "Delay multiplier right after a portal or gravity flip. 100 = no boost."
+    },
+    "transition-window-ms": {
+      "type": "int",
+      "name": "Transition window (ms)",
+      "default": 50,
+      "min": 0,
+      "max": 200
+    },
+    "speed-scaling": {
+      "type": "bool",
+      "name": "Scale by speed",
+      "default": true,
+      "description": "Use less delay at higher speeds."
+    },
+    "max-ms": {
+      "type": "int",
+      "name": "Maximum delay (ms)",
+      "default": 66,
+      "min": 1,
+      "max": 200,
+      "description": "Hard cap no matter what the other settings produce."
+    },
+    "title-hud": {
+      "type": "title",
+      "name": "On-screen display"
+    },
+    "show-hud": {
+      "type": "bool",
+      "name": "Show stage on screen",
+      "default": true,
+      "description": "Also toggled with F8."
+    },
+    "hud-scale": {
+      "type": "int",
+      "name": "Text size (%)",
+      "default": 35,
+      "min": 15,
+      "max": 100
+    },
+    "hud-opacity": {
+      "type": "int",
+      "name": "Text opacity",
+      "default": 150,
+      "min": 30,
+      "max": 255
+    },
+    "title-controls": {
+      "type": "title",
+      "name": "Controls"
+    },
+    "hold-disable-key": {
+      "type": "string",
+      "name": "Hold-to-disable key",
+      "default": "Shift",
+      "one-of": [
+        "Shift",
+        "Ctrl",
+        "Tab",
+        "F9"
+      ],
+      "description": "While you hold this key, the buffer is paused and inputs are raw. Release to turn it back on."
+    }
+  }
+}
