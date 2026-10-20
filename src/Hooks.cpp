@@ -74,8 +74,10 @@ class $modify(BufferGameLayer, GJBaseGameLayer) {
         st.queues[idx].push_back({down, button, isPlayer1, due});
     }
 
-    void processCommands(float dt) {
-        if (typeinfo_cast<PlayLayer*>(this)) {
+    void processCommands(float dt, bool isHalfTick, bool isLastTick) {
+        // Count one tick per full physics step. Half ticks are skipped so a
+        // step is never counted twice.
+        if (!isHalfTick && typeinfo_cast<PlayLayer*>(this)) {
             auto& st = buf::state();
 
             // Measure the real step length so settings in ms stay correct
@@ -96,7 +98,7 @@ class $modify(BufferGameLayer, GJBaseGameLayer) {
                 }
             }
         }
-        GJBaseGameLayer::processCommands(dt);
+        GJBaseGameLayer::processCommands(dt, isHalfTick, isLastTick);
     }
 };
 
