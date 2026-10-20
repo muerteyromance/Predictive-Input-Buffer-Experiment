@@ -36,12 +36,25 @@ namespace {
         st.passthrough = false;
     }
 
-    enumKeyCodes holdKeyCode() {
+    // Shift / Ctrl / Alt are tracked by the game as modifier keys, so they are
+    // polled. Tab and F9 arrive as normal key events.
+    bool isHoldKeyHeld() {
         auto name = buf::holdKeyName();
-        if (name == "Ctrl") return enumKeyCodes::KEY_Control;
-        if (name == "Tab") return enumKeyCodes::KEY_Tab;
-        if (name == "F9") return enumKeyCodes::KEY_F9;
-        return enumKeyCodes::KEY_Shift;
+        auto kd = CCKeyboardDispatcher::get();
+        if (name == "Ctrl") return kd->getControlKeyPressed();
+        if (name == "Alt") return kd->getAltKeyPressed();
+        if (name == "Tab" || name == "F9") return buf::state().holdKeyDown;
+        return kd->getShiftKeyPressed();
+    }
+
+    // Called on every update inside a level.
+    void updateHoldState(GJBaseGameLayer* layer) {
+        auto& st = buf::state();
+        bool held = isHoldKeyHeld();
+        if (held == st.holdDisabled) return;
+        st.holdDisabled = held;
+        if (held) flushPending(layer);
+        buf::refreshHud();
     }
 }
 
@@ -77,6 +90,7 @@ class $modify(BufferGameLayer, GJBaseGameLayer) {
     void processCommands(float dt, bool isHalfTick, bool isLastTick) {
         if (typeinfo_cast<PlayLayer*>(this)) {
             auto& st = buf::state();
+            updateHoldState(this);
 
             // Game time advances by the dt of every update, so this does not
             // depend on how the game splits its steps.
@@ -108,6 +122,7 @@ class $modify(BufferPlayLayer, PlayLayer) {
     void setupHasCompleted() {
         PlayLayer::setupHasCompleted();
         buf::state().holdDisabled = false;
+        buf::state().holdKeyDown = false;
         buf::resetRuntime();
         buf::createHud(this);
     }
@@ -120,6 +135,7 @@ class $modify(BufferPlayLayer, PlayLayer) {
     void onQuit() {
         buf::destroyHud();
         buf::state().holdDisabled = false;
+        buf::state().holdKeyDown = false;
         buf::resetRuntime();
         PlayLayer::onQuit();
     }
@@ -131,13 +147,12 @@ class $modify(BufferKeyboard, CCKeyboardDispatcher) {
     bool dispatchKeyboardMSG(enumKeyCodes key, bool isKeyDown, bool isKeyRepeat, double timestamp) {
         auto& st = buf::state();
 
-        if (key == holdKeyCode() && !isKeyRepeat) {
-            if (isKeyDown != st.holdDisabled) {
-                st.holdDisabled = isKeyDown;
-                if (isKeyDown) {
-                    if (auto pl = PlayLayer::get()) flushPending(pl);
-                }
-                buf::refreshHud();
+        // Tab and F9 can be used as the hold key; they are applied in processCommands.
+        if (!isKeyRepeat) {
+            auto hn = buf::holdKeyName();
+            if ((key == enumKeyCodes::KEY_Tab && hn == "Tab") ||
+                (key == enumKeyCodes::KEY_F9 && hn == "F9")) {
+                st.holdKeyDown = isKeyDown;
             }
         }
 

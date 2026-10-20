@@ -30,7 +30,8 @@ namespace buf {
     struct State {
         int level = 2;              // index into kLevels (2 = 100%)
         bool situational = true;    // F7: per-gamemode logic on/off
-        bool holdDisabled = false;  // true while the hold-to-disable key is held
+        bool holdDisabled = false;  // true while the buffer is paused by the hold key
+        bool holdKeyDown = false;   // raw state of Tab / F9 (event based)
         bool passthrough = false;   // true while we are replaying inputs ourselves
 
         // One queue per player so player 1 and player 2 never delay each other.
