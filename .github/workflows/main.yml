@@ -20,3 +20,10 @@ jobs:
           target: Win64
           use-lto: false
           use-cpm-cache: false
+
+      - name: Upload .geode
+        uses: actions/upload-artifact@v4
+        with:
+          name: PredictiveInputBuffer-geode
+          path: "**/*.geode"
+          if-no-files-found: error
