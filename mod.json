@@ -1,163 +1,63 @@
 {
   "geode": "5.11.2",
-  "gd": {
-    "win": "2.2081"
-  },
+  "gd": { "win": "2.2081" },
   "id": "cesar.input-buffer",
   "name": "Predictive Input Buffer",
-     "version": "v0.4.0",
-  "developer": "muerteyromance",
-  "description": "Per-gamemode input buffer. F6 intensity, F7 per-gamemode logic, F8 on-screen display, hold a key to pause the buffer.",
+  "version": "v0.5.0",
+  "developer": "CesarGD96",
+  "description": "Input buffer with presets and a cmd console. Cycle key changes the preset, hold a key to pause.",
   "settings": {
-    "title-delays": {
-      "type": "title",
-      "name": "Delay per gamemode (milliseconds)"
-    },
-    "wave-ms": {
-      "type": "int",
-      "name": "Wave",
-      "default": 25,
-      "min": 0,
-      "max": 100,
-      "description": "Input delay in wave. Higher = more forgiving, less direct control."
-    },
-    "ship-ms": {
-      "type": "int",
-      "name": "Ship",
-      "default": 0,
-      "min": 0,
-      "max": 100,
-      "description": "0 keeps the ship fully raw so it never feels sluggish."
-    },
-    "ufo-ms": {
-      "type": "int",
-      "name": "UFO",
-      "default": 12,
-      "min": 0,
-      "max": 100
-    },
-    "cube-ms": {
-      "type": "int",
-      "name": "Cube",
-      "default": 12,
-      "min": 0,
-      "max": 100
-    },
-    "ball-ms": {
-      "type": "int",
-      "name": "Ball",
-      "default": 12,
-      "min": 0,
-      "max": 100
-    },
-    "robot-ms": {
-      "type": "int",
-      "name": "Robot",
-      "default": 12,
-      "min": 0,
-      "max": 100
-    },
-    "spider-ms": {
-      "type": "int",
-      "name": "Spider",
-      "default": 8,
-      "min": 0,
-      "max": 100
-    },
-    "swing-ms": {
-      "type": "int",
-      "name": "Swing",
-      "default": 0,
-      "min": 0,
-      "max": 100
-    },
-    "flat-ms": {
-      "type": "int",
-      "name": "Flat delay (when F7 situational is OFF)",
-      "default": 12,
-      "min": 0,
-      "max": 100,
-      "description": "Single delay used for every gamemode when per-gamemode logic is toggled off with F7."
-    },
-    "title-extras": {
-      "type": "title",
-      "name": "Extras"
-    },
-    "transition-percent": {
-      "type": "int",
-      "name": "Transition boost (%)",
-      "default": 150,
-      "min": 100,
-      "max": 300,
-      "description": "Delay multiplier right after a portal or gravity flip. 100 = no boost."
-    },
-    "transition-window-ms": {
-      "type": "int",
-      "name": "Transition window (ms)",
-      "default": 50,
-      "min": 0,
-      "max": 200
-    },
-    "speed-scaling": {
-      "type": "bool",
-      "name": "Scale by speed",
-      "default": true,
-      "description": "Use less delay at higher speeds."
-    },
-    "max-ms": {
-      "type": "int",
-      "name": "Maximum delay (ms)",
-      "default": 66,
-      "min": 1,
-      "max": 200,
-      "description": "Hard cap no matter what the other settings produce."
-    },
-    "title-hud": {
-      "type": "title",
-      "name": "On-screen display"
-    },
-    "show-hud": {
-      "type": "bool",
-      "name": "Show stage on screen",
-      "default": true,
-      "description": "Also toggled with F8."
-    },
-    "hud-scale": {
-      "type": "int",
-      "name": "Text size (%)",
-      "default": 35,
-      "min": 15,
-      "max": 100
-    },
-    "hud-opacity": {
-      "type": "int",
-      "name": "Text opacity",
-      "default": 150,
-      "min": 30,
-      "max": 255
-    },
-    "title-controls": {
-      "type": "title",
-      "name": "Controls"
+    "title-keys": { "type": "title", "name": "Controls" },
+    "cycle-key": {
+      "type": "string", "name": "Preset cycle key", "default": "F7",
+      "one-of": ["F7", "F8", "F9", "F10"],
+      "description": "Cycles Suave > Medio > Alto > Fuerte > Off. F6 is left free for the original mod."
     },
     "hold-disable-key": {
-      "type": "string",
-      "name": "Hold-to-disable key",
-      "default": "Shift",
-      "one-of": [
-        "Shift",
-        "Ctrl",
-        "Alt",
-        "Tab",
-        "F9"
-      ],
-      "description": "While you hold this key, the buffer is paused and inputs are raw. Release to turn it back on."
+      "type": "string", "name": "Hold-to-pause key", "default": "Shift",
+      "one-of": ["Shift", "Ctrl", "Alt", "None"],
+      "description": "While held, the buffer is paused and inputs are raw."
     },
-    "debug-hud": {
-      "type": "bool",
-      "name": "Show debug panel",
-      "default": true,
-      "description": "Shows internal counters under the stage text. Used to diagnose problems."
+    "start-preset": {
+      "type": "string", "name": "Preset at game start", "default": "Suave",
+      "one-of": ["Suave", "Medio", "Alto", "Fuerte", "Off"]
+    },
+
+    "title-engine": { "type": "title", "name": "Engine" },
+    "tps": {
+      "type": "int", "name": "Physics TPS", "default": 240, "min": 30, "max": 1000,
+      "description": "Used to convert ticks to milliseconds. Set it to the TPS you play at."
+    },
+    "release-point": {
+      "type": "string", "name": "Where delayed inputs are released", "default": "playerUpdate",
+      "one-of": ["playerUpdate", "processCommands"],
+      "description": "If clicks feel lost, switch this and test again. Applies live."
+    },
+    "release-percent": {
+      "type": "int", "name": "Release delay (% of click delay)", "default": 100, "min": 0, "max": 200
+    },
+    "max-ms": {
+      "type": "int", "name": "Maximum delay (ms)", "default": 70, "min": 1, "max": 200
+    },
+
+    "title-modes": { "type": "title", "name": "Strength per gamemode (% of the preset)" },
+    "wave-percent":   { "type": "int", "name": "Wave",   "default": 100, "min": 0, "max": 200 },
+    "ship-percent":   { "type": "int", "name": "Ship",   "default": 0,   "min": 0, "max": 200,
+                        "description": "0 = ship stays fully raw." },
+    "ufo-percent":    { "type": "int", "name": "UFO",    "default": 100, "min": 0, "max": 200 },
+    "cube-percent":   { "type": "int", "name": "Cube",   "default": 100, "min": 0, "max": 200 },
+    "ball-percent":   { "type": "int", "name": "Ball",   "default": 100, "min": 0, "max": 200 },
+    "robot-percent":  { "type": "int", "name": "Robot",  "default": 100, "min": 0, "max": 200 },
+    "spider-percent": { "type": "int", "name": "Spider", "default": 100, "min": 0, "max": 200 },
+    "swing-percent":  { "type": "int", "name": "Swing",  "default": 0,   "min": 0, "max": 200 },
+
+    "title-console": { "type": "title", "name": "Console" },
+    "console-enabled": {
+      "type": "bool", "name": "Open the cmd console", "default": true,
+      "description": "Needs a game restart to take effect."
+    },
+    "debug": {
+      "type": "bool", "name": "Debug (also write events to the Geode log)", "default": false
     }
   }
 }
