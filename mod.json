@@ -5,7 +5,7 @@
   },
   "id": "cesar.input-buffer",
   "name": "Predictive Input Buffer",
-  "version": "v0.4.0-diag",
+     "version": "v0.4.0",
   "developer": "CesarGD96",
   "description": "Per-gamemode input buffer. F6 intensity, F7 per-gamemode logic, F8 on-screen display, hold a key to pause the buffer.",
   "settings": {
