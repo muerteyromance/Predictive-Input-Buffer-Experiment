@@ -2,137 +2,95 @@
 #include <Geode/modify/CCKeyboardDispatcher.hpp>
 #include <Geode/modify/GJBaseGameLayer.hpp>
 #include <Geode/modify/PlayLayer.hpp>
+#include <Geode/modify/PlayerObject.hpp>
 
 #include <algorithm>
-#include <string>
 
-#include "Config.hpp"
-#include "Hud.hpp"
-#include "Situation.hpp"
+#include "Console.hpp"
+#include "Engine.hpp"
 #include "State.hpp"
 
 using namespace geode::prelude;
 
-namespace {
-    bool bufferActive() {
-        auto const& st = buf::state();
-        return st.level > 0 && !st.holdDisabled;
-    }
-
-    // Applies everything still waiting, right now, in order. Used when the
-    // buffer gets turned off or paused so no click or release is ever lost
-    // (a lost release would leave the button "stuck" down).
-    void flushPending(GJBaseGameLayer* layer) {
-        auto& st = buf::state();
-        st.passthrough = true;
-        for (int i = 0; i < 2; i++) {
-            while (!st.queues[i].empty()) {
-                auto in = st.queues[i].front();
-                st.queues[i].pop_front();
-                layer->handleButton(in.down, in.button, in.isPlayer1);
-            }
-            st.lastDueMs[i] = 0.0;
-        }
-        st.passthrough = false;
-    }
-
-    // Shift / Ctrl / Alt are tracked by the game as modifier keys, so they are
-    // polled. Tab and F9 arrive as normal key events.
-    bool isHoldKeyHeld() {
-        auto name = buf::holdKeyName();
-        auto kd = CCKeyboardDispatcher::get();
-        if (name == "Ctrl") return kd->getControlKeyPressed();
-        if (name == "Alt") return kd->getAltKeyPressed();
-        if (name == "Tab" || name == "F9") return buf::state().holdKeyDown;
-        return kd->getShiftKeyPressed();
-    }
-
-    // Called on every update inside a level.
-    void updateHoldState(GJBaseGameLayer* layer) {
-        auto& st = buf::state();
-        bool held = isHoldKeyHeld();
-        if (held == st.holdDisabled) return;
-        st.holdDisabled = held;
-        if (held) flushPending(layer);
-        buf::refreshHud();
-    }
-}
-
-// Intercepts clicks and releases, and replays them a few milliseconds later.
+// Intercepts clicks and releases and holds them for a few milliseconds.
 class $modify(BufferGameLayer, GJBaseGameLayer) {
     void handleButton(bool down, int button, bool isPlayer1) {
         auto& st = buf::state();
 
-        // Our own replay, or buffer off/paused, or not a real level
-        // (the editor): pass straight through.
+        // Our own replay, a paused/off buffer, or not a real level (editor): pass through.
         bool inLevel = typeinfo_cast<PlayLayer*>(this) != nullptr;
-        if (st.passthrough || !inLevel || !bufferActive()) {
+        if (st.passthrough || !inLevel || !buf::bufferActive()) {
             GJBaseGameLayer::handleButton(down, button, isPlayer1);
             return;
         }
 
         int idx = isPlayer1 ? 0 : 1;
-        float delay = buf::delayMsFor(this, isPlayer1);
-        st.dbg.in++;
-        st.dbg.lastDelayMs = delay;
+        float delay = buf::delayMsFor(this, isPlayer1, down);
+        st.c.total++;
+        st.dirty = true;
 
         // Nothing to delay and nothing waiting for this player.
         if (delay <= 0.f && st.queues[idx].empty()) {
+            st.c.direct++;
+            buf::pushEvent(fmt::format(
+                "{} {} {} directo (sin retraso)",
+                down ? "click  " : "release", isPlayer1 ? "P1" : "P2",
+                buf::modeNameOf(isPlayer1 ? this->m_player1 : this->m_player2)
+            ));
             GJBaseGameLayer::handleButton(down, button, isPlayer1);
             return;
         }
 
-        // Order is preserved per player: an input never lands before an
-        // earlier one of the same player, so a release can't overtake its press.
+        // Order is preserved per player: an input never lands before an earlier
+        // one of the same player, so a release can never overtake its press.
         double now = buf::wallMs();
         double due = std::max(now + delay, st.lastDueMs[idx]);
         st.lastDueMs[idx] = due;
         st.queues[idx].push_back({down, button, isPlayer1, due, now});
-        st.dbg.queued++;
+        st.c.held++;
+        buf::pushEvent(fmt::format(
+            "{} {} {} retenido +{:.1f} ms",
+            down ? "click  " : "release", isPlayer1 ? "P1" : "P2",
+            buf::modeNameOf(isPlayer1 ? this->m_player1 : this->m_player2), due - now
+        ));
     }
 
     void processCommands(float dt, bool isHalfTick, bool isLastTick) {
         if (typeinfo_cast<PlayLayer*>(this)) {
             auto& st = buf::state();
-            updateHoldState(this);
-
-            st.dbg.calls++;
-            if (isHalfTick) st.dbg.halfCalls++;
-            st.dbg.lastDtMs = dt * 1000.f;
-
-            buf::updateSituation(this);
-
-            // Everything is timed in real milliseconds, so it does not depend
-            // on how the game splits or labels its physics steps.
-            double now = buf::wallMs();
-            for (int i = 0; i < 2; i++) {
-                auto& q = st.queues[i];
-                while (!q.empty()) {
-                    auto const& front = q.front();
-                    bool due = front.dueMs <= now;
-                    bool stale = (now - front.enqueuedWallMs) > buf::kFailsafeMs;
-                    if (!due && !stale) break;
-
-                    if (due) st.dbg.out++; else st.dbg.stale++;
-                    auto in = front;
-                    q.pop_front();
-                    GJBaseGameLayer::handleButton(in.down, in.button, in.isPlayer1);
-                }
-            }
-
-            if (st.dbg.calls % 15 == 0) buf::refreshDebug();
+            st.c.callsPC++;
+            if (isHalfTick) st.c.callsPCHalf++;
+            st.c.lastDtMs = dt * 1000.f;
+            buf::tick(this, 0);
         }
         GJBaseGameLayer::processCommands(dt, isHalfTick, isLastTick);
+    }
+};
+
+// Second place where held inputs can be released (the original mod hooks this one).
+class $modify(BufferPlayer, PlayerObject) {
+    void update(float dt) {
+        if (auto pl = PlayLayer::get()) {
+            if (this == pl->m_player1) {
+                buf::state().c.callsPU++;
+                buf::tick(pl, 1);
+            }
+        }
+        PlayerObject::update(dt);
     }
 };
 
 class $modify(BufferPlayLayer, PlayLayer) {
     void setupHasCompleted() {
         PlayLayer::setupHasCompleted();
-        buf::state().holdDisabled = false;
-        buf::state().holdKeyDown = false;
+        auto& st = buf::state();
+        st.holdDisabled = false;
+        st.c = buf::Counters{};
+        st.events.clear();
         buf::resetRuntime();
-        buf::createHud(this);
+        buf::refreshConfig(true);
+        buf::pushEvent("nivel listo");
+        buf::renderConsole(true);
     }
 
     void resetLevel() {
@@ -141,49 +99,35 @@ class $modify(BufferPlayLayer, PlayLayer) {
     }
 
     void onQuit() {
-        buf::destroyHud();
         buf::state().holdDisabled = false;
-        buf::state().holdKeyDown = false;
         buf::resetRuntime();
+        buf::pushEvent("saliste del nivel");
+        buf::renderConsole(true);
         PlayLayer::onQuit();
     }
 };
 
-// F6: intensity, F7: per-gamemode logic, F8: on-screen display,
-// hold key (setting): temporarily disable the buffer while held.
 class $modify(BufferKeyboard, CCKeyboardDispatcher) {
     bool dispatchKeyboardMSG(enumKeyCodes key, bool isKeyDown, bool isKeyRepeat, double timestamp) {
-        auto& st = buf::state();
-
-        // Tab and F9 can be used as the hold key; they are applied in processCommands.
-        if (!isKeyRepeat) {
-            auto hn = buf::holdKeyName();
-            if ((key == enumKeyCodes::KEY_Tab && hn == "Tab") ||
-                (key == enumKeyCodes::KEY_F9 && hn == "F9")) {
-                st.holdKeyDown = isKeyDown;
-            }
-        }
-
-        if (isKeyDown && !isKeyRepeat) {
-            if (key == enumKeyCodes::KEY_F6) {
-                if (auto pl = PlayLayer::get()) flushPending(pl);
-                st.level = (st.level + 1) % buf::kLevelCount;
-                buf::resetRuntime();
-                buf::refreshHud();
-                log::info("[InputBuffer] Intensity: {}%", static_cast<int>(buf::kLevels[st.level] * 100.f));
-            } else if (key == enumKeyCodes::KEY_F7) {
-                st.situational = !st.situational;
-                buf::refreshHud();
-                log::info("[InputBuffer] Per-gamemode logic: {}", st.situational ? "on" : "off");
-            } else if (key == enumKeyCodes::KEY_F8) {
-                buf::setHudEnabled(!buf::hudEnabled());
-                buf::refreshHud();
-            }
+        if (isKeyDown && !isKeyRepeat && key == buf::cycleKeyCode()) {
+            buf::cyclePreset();
         }
         return CCKeyboardDispatcher::dispatchKeyboardMSG(key, isKeyDown, isKeyRepeat, timestamp);
     }
 };
 
 $on_mod(Loaded) {
-    log::info("[InputBuffer] Loaded. F6 intensity, F7 per-gamemode, F8 display, hold key = pause.");
+    auto& st = buf::state();
+    buf::refreshConfig(true);
+
+    // Preset at game start, from the settings.
+    auto want = Mod::get()->getSettingValue<std::string>("start-preset");
+    for (int i = 0; i < buf::kPresetCount; i++) {
+        if (want == buf::kPresets[i].name) st.preset = i;
+    }
+
+    buf::initConsole();
+    buf::pushEvent("mod cargado");
+    buf::renderConsole(true);
+    log::info("[IB] loaded. preset={} cycleKey={}", buf::kPresets[st.preset].name, st.cfg.cycleKey);
 }

@@ -1,61 +1,84 @@
 #pragma once
 
 #include <deque>
+#include <string>
 
 namespace buf {
-    // F6 cycles through these multipliers. Level 0 = buffer fully off.
-    inline constexpr float kLevels[] = {0.f, 0.5f, 1.f, 1.5f, 2.f};
-    inline constexpr int kLevelCount = 5;
+    struct Preset {
+        char const* name;
+        int allTicks;   // ticks for every gamemode except wave
+        int waveTicks;  // ticks for wave
+        bool enabled;
+    };
 
-    // Safety net: any input waiting longer than this (real time) is released
-    // no matter what, so a click can never get stuck in the queue.
+    // Same ladder as the original mod: 2/2, 4/4, 8/8, 16/8, off.
+    inline constexpr Preset kPresets[] = {
+        {"Suave", 2, 2, true},
+        {"Medio", 4, 4, true},
+        {"Alto", 8, 8, true},
+        {"Fuerte", 16, 8, true},
+        {"Off", 0, 0, false}
+    };
+    inline constexpr int kPresetCount = 5;
+
+    // Any input waiting longer than this (real time) is released no matter what.
     inline constexpr double kFailsafeMs = 250.0;
 
     struct PendingInput {
         bool down;
         int button;
         bool isPlayer1;
-        double dueMs;           // real time (ms since mod start) when it should be applied
-        double enqueuedWallMs;  // real time when it was queued
+        double dueMs;       // real time (ms since mod start) when it should land
+        double enqueuedMs;  // real time when it was queued
     };
 
-    // What we remember about one player between updates, to detect portals
-    // and gravity flips.
-    struct PlayerTrack {
-        int gamemode = -1;
-        bool upsideDown = false;
-        double transitionUntilMs = 0.0;
+    // Settings, cached so hot paths do not touch the settings map.
+    struct Cfg {
+        int tps = 240;
+        int releasePoint = 1;  // 0 = processCommands, 1 = PlayerObject::update
+        int releasePct = 100;
+        int maxMs = 70;
+        int wavePct = 100, shipPct = 0, ufoPct = 100, cubePct = 100;
+        int ballPct = 100, robotPct = 100, spiderPct = 100, swingPct = 0;
+        bool debug = false;
+        bool consoleEnabled = true;
+        std::string cycleKey = "F7";
+        std::string holdKey = "Shift";
     };
 
-    // Counters shown in the on-screen debug panel.
-    struct Debug {
-        int calls = 0;       // processCommands calls
-        int halfCalls = 0;   // of those, how many had isHalfTick = true
-        int in = 0;          // clicks/releases intercepted while the buffer was active
-        int queued = 0;      // of those, how many were actually delayed
-        int out = 0;         // released from the queue on time
-        int stale = 0;       // released by the failsafe
+    struct Counters {
+        int total = 0;      // inputs seen while the buffer was active
+        int held = 0;       // delayed
+        int delivered = 0;  // released on time
+        int direct = 0;     // passed straight through
+        int failsafe = 0;   // released by the safety net
+        int callsPC = 0;    // processCommands calls
+        int callsPCHalf = 0;
+        int callsPU = 0;    // PlayerObject::update calls (player 1)
         float lastDtMs = 0.f;
-        float lastDelayMs = 0.f;
     };
 
     struct State {
-        int level = 2;              // index into kLevels (2 = 100%)
-        bool situational = true;    // F7: per-gamemode logic on/off
-        bool holdDisabled = false;  // true while the buffer is paused by the hold key
-        bool holdKeyDown = false;   // raw state of Tab / F9 (event based)
-        bool passthrough = false;   // true while we are replaying inputs ourselves
+        int preset = 0;
+        bool holdDisabled = false;
+        bool passthrough = false;  // true while we replay inputs ourselves
+        bool dirty = true;         // console needs a redraw
+        double lastRenderMs = 0.0;
+        double lastCfgMs = -1e9;
 
-        // One queue per player so player 1 and player 2 never delay each other.
-        // Index 0 = player 1, index 1 = player 2.
-        std::deque<PendingInput> queues[2];
+        std::deque<PendingInput> queues[2];  // [0] player 1, [1] player 2
         double lastDueMs[2] = {0.0, 0.0};
 
-        PlayerTrack players[2];
-        Debug dbg;
+        std::deque<std::string> events;  // last events, shown in the console
+        Cfg cfg;
+        Counters c;
+
+        double stepMs() const { return 1000.0 / (cfg.tps < 30 ? 30 : cfg.tps); }
     };
 
     State& state();
-    double wallMs();      // monotonic real time in ms since the mod started
-    void resetRuntime();  // clears queues and per-level tracking
+    double wallMs();                 // monotonic real time in ms since the mod started
+    void refreshConfig(bool force);  // re-reads settings (throttled unless force)
+    void pushEvent(std::string text);
+    void resetRuntime();             // clears queues, keeps counters
 }
